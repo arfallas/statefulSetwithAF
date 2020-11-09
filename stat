@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: azurefile
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: azurefile
+  resources:
+    requests:
+      storage: 5Gi
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: foo-test-db
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+  labels:
+    app: foo-test-db
+spec:
+  type: LoadBalancer
+  selector:
+    app: foo-test-db
+  ports:
+    - port: 5432
+      name: postgresql
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: foo-test-db
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: foo-test-db
+  serviceName: "foo-test-db"
+  template:
+    metadata:
+      name: foo-test-db
+      labels:
+        app: foo-test-db
+    spec:
+      containers:
+      - name: foo-test-db
+        image: postgres:10.3
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/
+          subPath: data
+          name: azurefile
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: hive
+        - name: POSTGRES_USER
+          value: username
+        - name: POSTGRES_PASSWORD
+          value: foo-db-creds   
+      volumes:
+      - name: azurefile
+        persistentVolumeClaim:
+          claimName: azurefile
